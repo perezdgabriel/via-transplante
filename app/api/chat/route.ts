@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic, MODEL } from "@/lib/anthropic";
 import { systemPrompt, escalateTool, generateCertificateTool } from "@/lib/prompts";
+import { entregarFolletoTool, getFolleto } from "@/lib/folletos";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type Priority = "urgent" | "normal" | "informative";
@@ -9,6 +10,8 @@ const PRIORITIES: Priority[] = ["urgent", "normal", "informative"];
 // NDJSON stream: one JSON object per line.
 // { type: "text", text }  incremental assistant text
 // { type: "escalated" }   the case was escalated to a nurse
+// { type: "certificate" } a school certificate is ready to download
+// { type: "folleto", id, title, url }  a folleto was delivered (url may be null until the PDF exists)
 // { type: "error", text } something failed
 function line(obj: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(obj) + "\n");
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
           model: MODEL,
           max_tokens: 1024,
           system: systemPrompt({ name: conv.patient_name }),
-          tools: [escalateTool, generateCertificateTool],
+          tools: [escalateTool, generateCertificateTool, entregarFolletoTool],
           messages,
         });
 
@@ -120,6 +123,18 @@ export async function POST(request: Request) {
           assistantText += notice;
           controller.enqueue(line({ type: "text", text: notice }));
           controller.enqueue(line({ type: "certificate" }));
+        } else if (toolUse?.name === "entregar_folleto") {
+          // The AI only picks an id; the server owns title+url so a link can't be fabricated.
+          const id = (toolUse.input as { folleto_id?: string }).folleto_id ?? "";
+          const folleto = getFolleto(id);
+          if (folleto) {
+            const notice = `\n\n📄 ${folleto.title}`;
+            assistantText += notice;
+            controller.enqueue(line({ type: "text", text: notice }));
+            controller.enqueue(
+              line({ type: "folleto", id: folleto.id, title: folleto.title, url: folleto.url }),
+            );
+          }
         }
 
         if (assistantText.trim()) {

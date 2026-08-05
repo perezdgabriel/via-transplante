@@ -16,6 +16,8 @@ implementación.
 | Certificado del colegio | `SchoolCertificate` | Constancia de asistencia con solo nombre + RUT, sin diagnóstico. (Pendiente, Slice 2.) |
 | RUT | `rut` | Identificador nacional chileno. Se valida el dígito verificador. Es un **organizador** (agrupa consultas), no una llave de acceso. |
 | Dueño de la conversación | `owner_id` | Usuario anónimo de Supabase (`auth.uid()`) del paciente. Habilita el Realtime del paciente vía RLS. El **token** sigue siendo la llave de acceso. |
+| Base de conocimiento | `knowledgeBase` | Contenido aprobado por el hospital que la IA puede entregar. La IA **solo relata texto aprobado de forma textual**; nunca redacta indicaciones clínicas por su cuenta. Lo no cubierto se escala. |
+| Folleto | `Folleto` | Recurso educativo (PDF/infografía) del catálogo del hospital que la IA puede entregar al usuario. |
 
 ## Estados
 

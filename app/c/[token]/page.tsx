@@ -19,6 +19,8 @@ export default function ChatPage({
   const [escalated, setEscalated] = useState(false);
   const [closed, setClosed] = useState(false);
   const [certificateAvailable, setCertificateAvailable] = useState(false);
+  // ponytail: folleto cards are live-only (not persisted); the "📄 título" text line survives a reload.
+  const [folletos, setFolletos] = useState<{ id: string; title: string; url: string | null }[]>([]);
   const [notFound, setNotFound] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -139,13 +141,25 @@ export default function ChatPage({
         buffer = lines.pop() ?? "";
         for (const raw of lines) {
           if (!raw.trim()) continue;
-          const evt = JSON.parse(raw) as { type: string; text?: string };
+          const evt = JSON.parse(raw) as {
+            type: string;
+            text?: string;
+            id?: string;
+            title?: string;
+            url?: string | null;
+          };
           if (evt.type === "text" && evt.text) {
             appendToLast(evt.text);
           } else if (evt.type === "escalated") {
             setEscalated(true);
           } else if (evt.type === "certificate") {
             setCertificateAvailable(true);
+          } else if (evt.type === "folleto" && evt.id && evt.title) {
+            setFolletos((f) =>
+              f.some((x) => x.id === evt.id)
+                ? f
+                : [...f, { id: evt.id!, title: evt.title!, url: evt.url ?? null }],
+            );
           } else if (evt.type === "error" && evt.text) {
             appendToLast(evt.text);
           }
@@ -213,6 +227,24 @@ export default function ChatPage({
             .
           </p>
         )}
+        {folletos.map((f) => (
+          <div key={f.id} className="flex justify-center">
+            {f.url ? (
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200"
+              >
+                📄 {f.title}
+              </a>
+            ) : (
+              <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                📄 {f.title} (próximamente)
+              </span>
+            )}
+          </div>
+        ))}
         {certificateAvailable && (
           <div className="flex justify-center">
             <a
