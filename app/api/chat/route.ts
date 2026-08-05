@@ -72,7 +72,18 @@ export async function POST(request: Request) {
         const ai = getAnthropic().messages.stream({
           model: MODEL,
           max_tokens: 1024,
-          system: systemPrompt({ name: conv.patient_name }),
+          // Prompt caching: the big static prompt (tools + KB + rules) is the cached prefix, identical
+          // across all patients. The patient name goes in a second, uncached block after the breakpoint,
+          // so it doesn't invalidate the shared prefix. Cache hits within a conversation (turns 2+) and
+          // across patients. Note: caches on Sonnet (min 1024 tok); Haiku's min is 4096, so it may not.
+          system: [
+            {
+              type: "text",
+              text: systemPrompt(),
+              cache_control: { type: "ephemeral" },
+            },
+            { type: "text", text: `Estás hablando con: ${conv.patient_name}.` },
+          ],
           tools: [escalateTool, generateCertificateTool, entregarFolletoTool],
           messages,
         });
