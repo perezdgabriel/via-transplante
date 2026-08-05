@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { Nav } from "./Nav";
 import { AlertsRealtime } from "./AlertsRealtime";
-import { reclassifyPriority, resolveAlert } from "./actions";
-import { PRIORITY_LABEL, PRIORITY_STYLE } from "./labels";
+import { reclassifyPriority, resolveAlert, replyToUser } from "./actions";
+import { PRIORITY_LABEL, PRIORITY_STYLE, ROLE_LABEL } from "./labels";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
                   {messages.map((m, i) => (
                     <p key={i}>
                       <span className="font-medium">
-                        {m.role === "user" ? "Usuario: " : "Asistente: "}
+                        {(ROLE_LABEL[m.role] ?? m.role) + ": "}
                       </span>
                       <span className="whitespace-pre-wrap">{m.content}</span>
                     </p>
@@ -127,6 +127,22 @@ export default async function DashboardPage() {
                   </button>
                 </form>
               </div>
+
+              <form action={replyToUser} className="mt-3 flex items-end gap-2">
+                <input type="hidden" name="conversationId" value={a.conversation_id} />
+                <label className="flex-1 text-sm">
+                  <span className="block text-zinc-500">Responder por chat</span>
+                  <input
+                    name="content"
+                    required
+                    className="mt-1 w-full rounded-lg border border-black/15 px-2 py-1.5 dark:border-white/20 dark:bg-zinc-800"
+                    placeholder="Mensaje para el usuario…"
+                  />
+                </label>
+                <button className="rounded-lg border border-black/15 px-3 py-1.5 text-sm dark:border-white/20">
+                  Enviar
+                </button>
+              </form>
             </article>
           );
         })}

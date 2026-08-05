@@ -47,6 +47,18 @@ export async function resolveAlert(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function replyToUser(formData: FormData) {
+  const supabase = await requireNurse();
+  const conversationId = String(formData.get("conversationId"));
+  const content = String(formData.get("content") ?? "").trim();
+  if (!content) return;
+
+  await supabase
+    .from("messages")
+    .insert({ conversation_id: conversationId, role: "nurse", content });
+  revalidatePath("/dashboard");
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

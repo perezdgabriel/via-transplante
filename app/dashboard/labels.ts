@@ -5,6 +5,12 @@ export const PRIORITY_LABEL: Record<string, string> = {
   informative: "Informativo",
 };
 
+export const ROLE_LABEL: Record<string, string> = {
+  user: "Usuario",
+  assistant: "Asistente",
+  nurse: "Enfermera",
+};
+
 export const STATUS_LABEL: Record<string, string> = {
   ai_active: "Resuelto por IA / en curso",
   escalated: "Escalado",

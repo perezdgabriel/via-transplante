@@ -36,14 +36,12 @@ export async function POST(request: Request) {
     .from("messages")
     .insert({ conversation_id: conv.id, role: "user", content: message });
 
-  // Once escalated, a human is handling it — don't let the AI keep answering. (Slice 1: no AI after escalation.)
+  // Once escalated, a nurse is handling it — the user's message is delivered to her (persisted above);
+  // the AI stays silent so it doesn't talk over the nurse. No stream body.
   if (conv.status === "escalated") {
-    const text =
-      "Tu caso ya está en revisión por una enfermera. Te contactaremos a la brevedad.";
     return new Response(
       new ReadableStream({
         start(c) {
-          c.enqueue(line({ type: "text", text }));
           c.close();
         },
       }),
