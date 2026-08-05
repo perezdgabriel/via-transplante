@@ -16,7 +16,13 @@ function renderInline(text: string): React.ReactNode[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m.index > last) parts.push(text.slice(last, m.index));
-    parts.push(m[1] !== undefined ? <strong key={k++}>{m[1]}</strong> : <em key={k++}>{m[2]}</em>);
+    parts.push(
+      m[1] !== undefined ? (
+        <strong key={k++}>{m[1]}</strong>
+      ) : (
+        <em key={k++}>{m[2]}</em>
+      ),
+    );
     last = m.index + m[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -37,7 +43,9 @@ export default function ChatPage({
   const [closed, setClosed] = useState(false);
   const [certificateAvailable, setCertificateAvailable] = useState(false);
   // ponytail: folleto cards are live-only (not persisted); the "📄 título" text line survives a reload.
-  const [folletos, setFolletos] = useState<{ id: string; title: string; url: string | null }[]>([]);
+  const [folletos, setFolletos] = useState<
+    { id: string; title: string; url: string | null }[]
+  >([]);
   const [notFound, setNotFound] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +61,9 @@ export default function ChatPage({
       const r = await fetch(`/api/conversations/${token}`);
       if (!r.ok) return;
       const data = await r.json();
-      setMessages((prev) => (data.messages.length > prev.length ? data.messages : prev));
+      setMessages((prev) =>
+        data.messages.length > prev.length ? data.messages : prev,
+      );
       if (data.status === "resolved") setClosed(true);
     } catch {
       /* transient; a later Realtime event or poll retries */
@@ -87,7 +97,12 @@ export default function ChatPage({
       .channel(`chat-${convId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${convId}`,
+        },
         () => refresh(),
       )
       .subscribe();
@@ -136,7 +151,11 @@ export default function ChatPage({
       return;
     }
 
-    setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: text },
+      { role: "assistant", content: "" },
+    ]);
 
     try {
       const res = await fetch("/api/chat", {
@@ -175,7 +194,10 @@ export default function ChatPage({
             setFolletos((f) =>
               f.some((x) => x.id === evt.id)
                 ? f
-                : [...f, { id: evt.id!, title: evt.title!, url: evt.url ?? null }],
+                : [
+                    ...f,
+                    { id: evt.id!, title: evt.title!, url: evt.url ?? null },
+                  ],
             );
           } else if (evt.type === "error" && evt.text) {
             appendToLast(evt.text);
@@ -202,14 +224,18 @@ export default function ChatPage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
       <header className="border-b border-black/10 px-4 py-3 dark:border-white/15">
-        <h1 className="font-semibold">Asistencia Pediátrica</h1>
+        <h1 className="font-semibold">Vía Transplante</h1>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m, i) => (
           <div
             key={i}
-            className={m.role === "user" ? "flex justify-end" : "flex flex-col items-start"}
+            className={
+              m.role === "user"
+                ? "flex justify-end"
+                : "flex flex-col items-start"
+            }
           >
             {m.role === "nurse" && (
               <span className="mb-1 ml-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -232,8 +258,9 @@ export default function ChatPage({
         ))}
         {escalated && !closed && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            Tu caso fue derivado a una enfermera. Ya no responde el asistente virtual: puedes
-            seguir escribiendo aquí y una enfermera te responderá por este chat.
+            Tu caso fue derivado a una enfermera. Ya no responde el asistente
+            virtual: puedes seguir escribiendo aquí y una enfermera te
+            responderá por este chat.
           </p>
         )}
         {closed && (
@@ -276,7 +303,10 @@ export default function ChatPage({
         <div ref={endRef} />
       </div>
 
-      <form onSubmit={send} className="flex gap-2 border-t border-black/10 p-3 dark:border-white/15">
+      <form
+        onSubmit={send}
+        className="flex gap-2 border-t border-black/10 p-3 dark:border-white/15"
+      >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

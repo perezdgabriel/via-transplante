@@ -1,4 +1,4 @@
-# Puesta en marcha — MVP Asistencia Pediátrica (Slice 1)
+# Puesta en marcha — MVP Vía Transplante (Slice 1)
 
 ## Requisitos
 - Node 24+, pnpm

@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Asistencia Pediátrica",
-  description: "Asistente virtual del hospital pediátrico",
+  title: "Via Trasplante",
+  description:
+    "Asistente virtual para pacientes pediátricos trasplantados y sus cuidadores.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

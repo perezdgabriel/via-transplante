@@ -23,7 +23,9 @@ export default function Home() {
       // Silent anonymous identity so the chat can use Realtime (RLS scopes by auth.uid()).
       // Reuse an existing session so the same device keeps one owner across conversations.
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) await supabase.auth.signInAnonymously();
 
       const res = await fetch("/api/conversations", {
@@ -47,9 +49,10 @@ export default function Home() {
         onSubmit={start}
         className="w-full max-w-sm rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/15 dark:bg-zinc-900"
       >
-        <h1 className="text-xl font-semibold">Asistencia Pediátrica</h1>
+        <h1 className="text-xl font-semibold">Vía Transplante</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Cuéntanos tu duda. Un asistente te ayudará y, si es necesario, una enfermera revisará tu caso.
+          Cuéntanos tu duda. Un asistente te ayudará y, si es necesario, una
+          enfermera revisará tu caso.
         </p>
 
         <label className="mt-5 block text-sm font-medium">Nombre</label>
