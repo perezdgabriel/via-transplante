@@ -6,6 +6,23 @@ import { createClient } from "@/lib/supabase/client";
 
 type Msg = { role: "user" | "assistant" | "nurse"; content: string };
 
+// ponytail: minimal inline markdown — bold/italic are the only modifiers the AI emits. Not a full
+// parser. Builds React nodes (no dangerouslySetInnerHTML), so text stays escaped and safe.
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const re = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+  let last = 0;
+  let k = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push(m[1] !== undefined ? <strong key={k++}>{m[1]}</strong> : <em key={k++}>{m[2]}</em>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 export default function ChatPage({
   params,
 }: {
@@ -209,13 +226,14 @@ export default function ChatPage({
                     : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100")
               }
             >
-              {m.content || "…"}
+              {m.content ? renderInline(m.content) : "…"}
             </div>
           </div>
         ))}
         {escalated && !closed && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            Tu caso fue derivado a una enfermera, que revisará y te contactará.
+            Tu caso fue derivado a una enfermera. Ya no responde el asistente virtual: puedes
+            seguir escribiendo aquí y una enfermera te responderá por este chat.
           </p>
         )}
         {closed && (
@@ -263,7 +281,13 @@ export default function ChatPage({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           className="flex-1 rounded-lg border border-black/15 px-3 py-2 dark:border-white/20 dark:bg-zinc-800"
-          placeholder={closed ? "Conversación cerrada" : "Escribe tu mensaje…"}
+          placeholder={
+            closed
+              ? "Conversación cerrada"
+              : escalated
+                ? "Escribe a la enfermera…"
+                : "Escribe tu mensaje…"
+          }
           disabled={sending || closed}
         />
         <button
