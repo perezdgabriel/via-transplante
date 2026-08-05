@@ -37,6 +37,14 @@ export default function ChatPage({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Pure updater: replace the last (assistant) message; never mutate the existing object.
+  function appendToLast(text: string) {
+    setMessages((m) => {
+      const last = m[m.length - 1];
+      return [...m.slice(0, -1), { ...last, content: last.content + text }];
+    });
+  }
+
   async function send(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
@@ -68,28 +76,16 @@ export default function ChatPage({
           if (!raw.trim()) continue;
           const evt = JSON.parse(raw) as { type: string; text?: string };
           if (evt.type === "text" && evt.text) {
-            setMessages((m) => {
-              const copy = [...m];
-              copy[copy.length - 1].content += evt.text;
-              return copy;
-            });
+            appendToLast(evt.text);
           } else if (evt.type === "escalated") {
             setEscalated(true);
           } else if (evt.type === "error" && evt.text) {
-            setMessages((m) => {
-              const copy = [...m];
-              copy[copy.length - 1].content += evt.text;
-              return copy;
-            });
+            appendToLast(evt.text);
           }
         }
       }
     } catch {
-      setMessages((m) => {
-        const copy = [...m];
-        copy[copy.length - 1].content += "Ocurrió un error. Intenta nuevamente.";
-        return copy;
-      });
+      appendToLast("Ocurrió un error. Intenta nuevamente.");
     } finally {
       setSending(false);
     }
