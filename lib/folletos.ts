@@ -4,8 +4,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 // como el listado que ve la IA en el system prompt, para que no se desincronicen.
 // El servidor es dueño de `title` y `url`: la IA solo elige un `id`, nunca inventa un enlace.
 //
-// ponytail: PDFs pendientes. Colocar los archivos aprobados en public/folletos/<id>.pdf.
-// Hasta entonces la tarjeta muestra el título sin descarga (url: null).
+// Las infografías viven en public/folletos/<id>.html (contenido de DEMO). url: null muestra la tarjeta
+// como "próximamente" sin enlace.
 export type Folleto = {
   id: string;
   title: string;
@@ -16,16 +16,22 @@ export type Folleto = {
 
 export const FOLLETOS: Folleto[] = [
   {
-    id: "alimentacion_complementaria",
-    title: "Alimentación complementaria en menores de 1 año",
-    url: null,
-    cuando: "dudas sobre alimentación/nutrición en lactantes menores de 1 año",
+    id: "infecciones_respiratorias",
+    title: "Prevención de infecciones respiratorias en pacientes inmunosuprimidos",
+    url: "/folletos/infecciones_respiratorias.html",
+    cuando: "dudas sobre cómo prevenir resfríos, gripe o virus respiratorios en un niño/a trasplantado",
   },
   {
-    id: "vrs",
-    title: "Prevención de virus respiratorios (VRS)",
-    url: null,
-    cuando: "dudas sobre prevención de virus respiratorios",
+    id: "alimentacion_segura",
+    title: "Alimentación segura para niños trasplantados",
+    url: "/folletos/alimentacion_segura.html",
+    cuando: "dudas sobre qué alimentos son seguros, higiene de alimentos o el pomelo",
+  },
+  {
+    id: "proteccion_solar",
+    title: "Cuidado de la piel y protección solar",
+    url: "/folletos/proteccion_solar.html",
+    cuando: "dudas sobre exposición al sol o cuidado de la piel bajo inmunosupresores",
   },
 ];
 
@@ -37,7 +43,9 @@ export function getFolleto(id: string): Folleto | undefined {
 
 /** Listado legible para el system prompt. */
 export function folletosPromptListing(): string {
-  return FOLLETOS.map((f) => `- ${f.id}: ${f.title} — entregar ante ${f.cuando}.`).join("\n");
+  return FOLLETOS.map(
+    (f) => `- ${f.id}: ${f.title} — entregar ante ${f.cuando}.`,
+  ).join("\n");
 }
 
 export const entregarFolletoTool: Anthropic.Tool = {
