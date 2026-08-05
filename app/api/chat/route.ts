@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic, MODEL } from "@/lib/anthropic";
-import { systemPrompt, escalateTool } from "@/lib/prompts";
+import { systemPrompt, escalateTool, generateCertificateTool } from "@/lib/prompts";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type Priority = "urgent" | "normal" | "informative";
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
           model: MODEL,
           max_tokens: 1024,
           system: systemPrompt({ name: conv.patient_name }),
-          tools: [escalateTool],
+          tools: [escalateTool, generateCertificateTool],
           messages,
         });
 
@@ -83,11 +83,10 @@ export async function POST(request: Request) {
 
         const final = await ai.finalMessage();
         const toolUse = final.content.find(
-          (b): b is Anthropic.ToolUseBlock =>
-            b.type === "tool_use" && b.name === "escalate",
+          (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
         );
 
-        if (toolUse) {
+        if (toolUse?.name === "escalate") {
           const input = toolUse.input as { priority?: string; summary?: string };
           const priority: Priority = PRIORITIES.includes(input.priority as Priority)
             ? (input.priority as Priority)
@@ -108,6 +107,21 @@ export async function POST(request: Request) {
           assistantText += notice;
           controller.enqueue(line({ type: "text", text: notice }));
           controller.enqueue(line({ type: "escalated" }));
+        } else if (toolUse?.name === "generate_certificate") {
+          await supabase
+            .from("conversations")
+            .update({
+              certificate_issued_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", conv.id);
+
+          const notice = assistantText.trim()
+            ? "\n\nTu certificado de asistencia está listo: puedes descargarlo con el botón de abajo."
+            : "Tu certificado de asistencia está listo: puedes descargarlo con el botón de abajo.";
+          assistantText += notice;
+          controller.enqueue(line({ type: "text", text: notice }));
+          controller.enqueue(line({ type: "certificate" }));
         }
 
         if (assistantText.trim()) {

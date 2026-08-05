@@ -11,7 +11,7 @@ export async function GET(
 
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, patient_name, status")
+    .select("id, patient_name, status, certificate_issued_at")
     .eq("token", token)
     .single();
 
@@ -28,6 +28,7 @@ export async function GET(
   return NextResponse.json({
     patientName: conversation.patient_name,
     status: conversation.status,
+    certificateAvailable: conversation.certificate_issued_at != null,
     // Only user/assistant turns are shown in the chat (nurse replies are Slice 2).
     messages: (messages ?? []).filter((m) => m.role !== "nurse"),
   });

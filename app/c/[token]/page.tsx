@@ -14,6 +14,7 @@ export default function ChatPage({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [escalated, setEscalated] = useState(false);
+  const [certificateAvailable, setCertificateAvailable] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +30,7 @@ export default function ChatPage({
       .then((data) => {
         setMessages(data.messages);
         setEscalated(data.status === "escalated");
+        setCertificateAvailable(Boolean(data.certificateAvailable));
       })
       .catch(() => setNotFound(true));
   }, [token]);
@@ -79,6 +81,8 @@ export default function ChatPage({
             appendToLast(evt.text);
           } else if (evt.type === "escalated") {
             setEscalated(true);
+          } else if (evt.type === "certificate") {
+            setCertificateAvailable(true);
           } else if (evt.type === "error" && evt.text) {
             appendToLast(evt.text);
           }
@@ -129,6 +133,16 @@ export default function ChatPage({
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
             Tu caso fue derivado a una enfermera, que revisará y te contactará.
           </p>
+        )}
+        {certificateAvailable && (
+          <div className="flex justify-center">
+            <a
+              href={`/api/certificate/${token}`}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Descargar certificado
+            </a>
+          </div>
         )}
         <div ref={endRef} />
       </div>
