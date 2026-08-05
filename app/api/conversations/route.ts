@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
 import { isValidRut, formatRut } from "@/lib/rut";
 
 // Create a conversation from the entry form (nombre + RUT). Returns the re-entry token.
@@ -19,6 +20,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "RUT inválido" }, { status: 400 });
   }
 
+  // The patient's anonymous session owns the conversation (powers Realtime via RLS).
+  const authed = await createClient();
+  const {
+    data: { user },
+  } = await authed.auth.getUser();
+
   const token = crypto.randomUUID();
   const supabase = createServiceClient();
   const { error } = await supabase.from("conversations").insert({
@@ -26,6 +33,7 @@ export async function POST(request: Request) {
     patient_name: name.trim(),
     rut: formatRut(rut),
     status: "ai_active",
+    owner_id: user?.id ?? null,
   });
 
   if (error) {

@@ -1,8 +1,10 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant" | "nurse"; content: string };
 
 export default function ChatPage({
   params,
@@ -10,10 +12,12 @@ export default function ChatPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
+  const [convId, setConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [escalated, setEscalated] = useState(false);
+  const [closed, setClosed] = useState(false);
   const [certificateAvailable, setCertificateAvailable] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -23,13 +27,29 @@ export default function ChatPage({
     localStorage.setItem("lastConversation", token);
   }, [token]);
 
+  // Fetch the server transcript and adopt it when it has more turns than we do (so it never
+  // clobbers an optimistic message that hasn't persisted yet). ponytail: length-based adopt.
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/conversations/${token}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      setMessages((prev) => (data.messages.length > prev.length ? data.messages : prev));
+      if (data.status === "resolved") setClosed(true);
+    } catch {
+      /* transient; a later Realtime event or poll retries */
+    }
+  }, [token]);
+
   // Load transcript on mount.
   useEffect(() => {
     fetch(`/api/conversations/${token}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
+        setConvId(data.id);
         setMessages(data.messages);
         setEscalated(data.status === "escalated");
+        setClosed(data.status === "resolved");
         setCertificateAvailable(Boolean(data.certificateAvailable));
       })
       .catch(() => setNotFound(true));
@@ -38,6 +58,31 @@ export default function ChatPage({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Realtime (fast path): the patient's anonymous session receives inserts on its own conversation
+  // (RLS scopes messages to owner_id = auth.uid()). Any insert triggers a transcript refresh.
+  useEffect(() => {
+    if (!convId || closed) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`chat-${convId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
+        () => refresh(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [convId, closed, refresh]);
+
+  // Fallback poll (~15s) while a nurse is handling it, in case Realtime isn't connected.
+  useEffect(() => {
+    if (!escalated || closed) return;
+    const id = setInterval(refresh, 15000);
+    return () => clearInterval(id);
+  }, [escalated, closed, refresh]);
 
   // Pure updater: replace the last (assistant) message; never mutate the existing object.
   function appendToLast(text: string) {
@@ -54,6 +99,24 @@ export default function ChatPage({
 
     setInput("");
     setSending(true);
+
+    // Once escalated a nurse is handling it: deliver the message, no AI turn/placeholder.
+    if (escalated) {
+      setMessages((m) => [...m, { role: "user", content: text }]);
+      try {
+        await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, message: text }),
+        });
+      } catch {
+        /* delivered on retry; nurse also sees the transcript */
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
 
     try {
@@ -115,23 +178,39 @@ export default function ChatPage({
         {messages.map((m, i) => (
           <div
             key={i}
-            className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
+            className={m.role === "user" ? "flex justify-end" : "flex flex-col items-start"}
           >
+            {m.role === "nurse" && (
+              <span className="mb-1 ml-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                Enfermera
+              </span>
+            )}
             <div
               className={
                 "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm " +
                 (m.role === "user"
                   ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                  : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100")
+                  : m.role === "nurse"
+                    ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+                    : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100")
               }
             >
               {m.content || "…"}
             </div>
           </div>
         ))}
-        {escalated && (
+        {escalated && !closed && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
             Tu caso fue derivado a una enfermera, que revisará y te contactará.
+          </p>
+        )}
+        {closed && (
+          <p className="rounded-lg bg-zinc-100 px-3 py-2 text-center text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            Esta conversación fue cerrada. Si necesitas ayuda,{" "}
+            <Link href="/" className="font-medium underline">
+              inicia una nueva consulta
+            </Link>
+            .
           </p>
         )}
         {certificateAvailable && (
@@ -152,12 +231,12 @@ export default function ChatPage({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           className="flex-1 rounded-lg border border-black/15 px-3 py-2 dark:border-white/20 dark:bg-zinc-800"
-          placeholder="Escribe tu mensaje…"
-          disabled={sending}
+          placeholder={closed ? "Conversación cerrada" : "Escribe tu mensaje…"}
+          disabled={sending || closed}
         />
         <button
           type="submit"
-          disabled={sending || !input.trim()}
+          disabled={sending || closed || !input.trim()}
           className="rounded-lg bg-zinc-900 px-4 py-2 font-medium text-white disabled:opacity-60 dark:bg-white dark:text-zinc-900"
         >
           Enviar

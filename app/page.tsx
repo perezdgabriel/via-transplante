@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isValidRut } from "@/lib/rut";
+import { createClient } from "@/lib/supabase/client";
 
 export default function Home() {
   const router = useRouter();
@@ -19,6 +20,12 @@ export default function Home() {
 
     setLoading(true);
     try {
+      // Silent anonymous identity so the chat can use Realtime (RLS scopes by auth.uid()).
+      // Reuse an existing session so the same device keeps one owner across conversations.
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) await supabase.auth.signInAnonymously();
+
       const res = await fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

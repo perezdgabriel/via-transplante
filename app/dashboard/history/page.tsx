@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Nav } from "../Nav";
-import { STATUS_LABEL } from "../labels";
+import { STATUS_LABEL, ROLE_LABEL } from "../labels";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,14 @@ export default async function HistoryPage() {
 
   const conversations = (data ?? []) as unknown as ConversationRow[];
 
+  // Group by patient RUT (conversations arrive newest-first, so each group's first is the latest).
+  const groups = new Map<string, ConversationRow[]>();
+  for (const c of conversations) {
+    const list = groups.get(c.rut) ?? [];
+    list.push(c);
+    groups.set(c.rut, list);
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <Nav />
@@ -35,27 +43,32 @@ export default async function HistoryPage() {
           <p className="text-sm text-zinc-500">Aún no hay consultas.</p>
         )}
 
-        {conversations.map((c) => {
-          const messages = [...(c.messages ?? [])].sort((x, y) =>
-            x.created_at.localeCompare(y.created_at),
-          );
-          return (
-            <article
-              key={c.id}
-              className="rounded-xl border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-900"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{c.patient_name}</p>
-                  <p className="text-sm text-zinc-500">{c.rut}</p>
-                </div>
-                <div className="text-right text-xs text-zinc-500">
-                  <p>{STATUS_LABEL[c.status] ?? c.status}</p>
-                  <p>{new Date(c.created_at).toLocaleString("es-CL")}</p>
-                </div>
-              </div>
+        {[...groups.entries()].map(([rut, convs]) => (
+          <section key={rut} className="space-y-2">
+            <header className="flex items-baseline justify-between px-1">
+              <h2 className="font-semibold">{convs[0].patient_name}</h2>
+              <span className="text-sm text-zinc-500">
+                {rut} · {convs.length} {convs.length === 1 ? "consulta" : "consultas"}
+              </span>
+            </header>
 
-              {c.summary && (
+            {convs.map((c) => {
+              const messages = [...(c.messages ?? [])].sort((x, y) =>
+                x.created_at.localeCompare(y.created_at),
+              );
+              return (
+                <article
+                  key={c.id}
+                  className="rounded-xl border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-900"
+                >
+                  <div className="flex items-center justify-end gap-3">
+                    <div className="text-right text-xs text-zinc-500">
+                      <p>{STATUS_LABEL[c.status] ?? c.status}</p>
+                      <p>{new Date(c.created_at).toLocaleString("es-CL")}</p>
+                    </div>
+                  </div>
+
+                  {c.summary && (
                 <p className="mt-2 text-sm">
                   <span className="font-medium">Resumen: </span>
                   {c.summary}
@@ -70,16 +83,18 @@ export default async function HistoryPage() {
                   {messages.map((m, i) => (
                     <p key={i}>
                       <span className="font-medium">
-                        {m.role === "user" ? "Usuario: " : "Asistente: "}
+                        {(ROLE_LABEL[m.role] ?? m.role) + ": "}
                       </span>
                       <span className="whitespace-pre-wrap">{m.content}</span>
                     </p>
                   ))}
                 </div>
-              </details>
-            </article>
-          );
-        })}
+                  </details>
+                </article>
+              );
+            })}
+          </section>
+        ))}
       </main>
     </div>
   );

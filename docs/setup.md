@@ -23,7 +23,12 @@
 4. **Cuenta de la enfermera**: en el panel de Supabase → Authentication → Users → crear un usuario
    (email + contraseña). Es la cuenta única compartida para el dashboard.
 
-5. **Levantar el proyecto**
+5. **Inicio de sesión anónimo**: en Supabase → Authentication → Sign In / Providers → habilitar
+   *Anonymous Sign-Ins*. El chat crea una sesión anónima silenciosa por paciente para el Realtime.
+   Los usuarios anónimos se acumulan en `auth.users` (~1 por dispositivo); conviene limpieza periódica
+   y protección del endpoint (CAPTCHA / rate limit). Ver `docs/adr/0003-anonymous-signin-for-realtime.md`.
+
+6. **Levantar el proyecto**
    ```bash
    pnpm dev
    ```
@@ -32,5 +37,7 @@
 
 ## Alcance
 Chat público → Claude responde, escala, o **genera el certificado de asistencia** (PDF descargable,
-solo nombre + RUT + fecha) → aviso en la bandeja de la enfermera → la enfermera reclasifica prioridad
-y resuelve. **Pendiente (Slice 2b):** respuesta de la enfermera al usuario por el mismo chat.
+solo nombre + RUT + fecha) → aviso en la bandeja de la enfermera → la enfermera reclasifica prioridad,
+**responde al usuario por el mismo chat**, o resuelve. Tras escalar, la IA queda en silencio y el chat
+del usuario se actualiza solo (~5s) para mostrar las respuestas de la enfermera; al resolver el aviso,
+la conversación se cierra.

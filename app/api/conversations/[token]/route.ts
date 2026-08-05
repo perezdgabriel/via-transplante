@@ -26,10 +26,10 @@ export async function GET(
     .order("created_at", { ascending: true });
 
   return NextResponse.json({
+    id: conversation.id,
     patientName: conversation.patient_name,
     status: conversation.status,
     certificateAvailable: conversation.certificate_issued_at != null,
-    // Only user/assistant turns are shown in the chat (nurse replies are Slice 2).
-    messages: (messages ?? []).filter((m) => m.role !== "nurse"),
+    messages: messages ?? [],
   });
 }
