@@ -307,10 +307,18 @@ export default function ChatPage({
         onSubmit={send}
         className="flex gap-2 border-t border-black/10 p-3 dark:border-white/15"
       >
-        <input
+        <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="flex-1 rounded-lg border border-black/15 px-3 py-2 dark:border-white/20 dark:bg-zinc-800"
+          onKeyDown={(e) => {
+            // Enter sends; Shift+Enter inserts a newline (textarea default).
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send(e);
+            }
+          }}
+          rows={1}
+          className="max-h-32 flex-1 resize-none rounded-lg border border-black/15 px-3 py-2 dark:border-white/20 dark:bg-zinc-800"
           placeholder={
             closed
               ? "Conversación cerrada"
