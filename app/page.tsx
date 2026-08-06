@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isValidRut } from "@/lib/rut";
 import { createClient } from "@/lib/supabase/client";
@@ -11,42 +11,91 @@ export default function Home() {
   const [rut, setRut] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // true until the mount effect decides whether to auto-start or show the form (avoids a form flash).
+  const [booting, setBooting] = useState(true);
 
-  async function start(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (name.trim().length < 2) return setError("Ingresa tu nombre.");
-    if (!isValidRut(rut)) return setError("El RUT no es válido.");
+  const startChat = useCallback(
+    async (n: string, r: string) => {
+      setError(null);
+      if (n.trim().length < 2) return setError("Ingresa tu nombre.");
+      if (!isValidRut(r)) return setError("El RUT no es válido.");
 
-    setLoading(true);
-    try {
-      // Silent anonymous identity so the chat can use Realtime (RLS scopes by auth.uid()).
-      // Reuse an existing session so the same device keeps one owner across conversations.
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) await supabase.auth.signInAnonymously();
+      setLoading(true);
+      try {
+        // Silent anonymous identity so the chat can use Realtime (RLS scopes by auth.uid()).
+        // Reuse an existing session so the same device keeps one owner across conversations.
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) await supabase.auth.signInAnonymously();
 
-      const res = await fetch("/api/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, rut }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error");
-      localStorage.setItem("lastConversation", data.token);
-      router.push(`/c/${data.token}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar.");
-      setLoading(false);
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: n, rut: r }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Error");
+        localStorage.setItem("lastConversation", data.token);
+        localStorage.setItem("patientName", n);
+        localStorage.setItem("patientRut", r);
+        router.push(`/c/${data.token}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo iniciar.");
+        setLoading(false);
+        setBooting(false); // auto-start failed → fall back to the form
+      }
+    },
+    [router],
+  );
+
+  // On this device already? Skip the form and start a new chat straight away. Otherwise prefill
+  // + show the form. Runs in an effect (not useState init) to keep localStorage off the SSR path.
+  useEffect(() => {
+    const savedName = localStorage.getItem("patientName") ?? "";
+    const savedRut = localStorage.getItem("patientRut") ?? "";
+    setName(savedName);
+    setRut(savedRut);
+    if (savedName.trim().length >= 2 && isValidRut(savedRut)) {
+      startChat(savedName, savedRut);
+    } else {
+      setBooting(false);
     }
+  }, [startChat]);
+
+  function startAsSomeoneElse() {
+    localStorage.removeItem("patientName");
+    localStorage.removeItem("patientRut");
+    setName("");
+    setRut("");
+    setError(null);
+    setLoading(false);
+    setBooting(false);
+  }
+
+  // Auto-starting (or its brief failure window): show a minimal screen, not the empty form.
+  if (booting) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">Iniciando tu chat…</p>
+        <button
+          onClick={startAsSomeoneElse}
+          className="text-sm font-medium text-zinc-900 underline dark:text-white"
+        >
+          Iniciar como otra persona
+        </button>
+      </main>
+    );
   }
 
   return (
     <main className="flex flex-1 items-center justify-center p-4">
       <form
-        onSubmit={start}
+        onSubmit={(e) => {
+          e.preventDefault();
+          startChat(name, rut);
+        }}
         className="w-full max-w-sm rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/15 dark:bg-zinc-900"
       >
         <h1 className="text-xl font-semibold">Vía Transplante</h1>
