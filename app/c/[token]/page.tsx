@@ -47,6 +47,8 @@ export default function ChatPage({
     { id: string; title: string; url: string | null }[]
   >([]);
   const [notFound, setNotFound] = useState(false);
+  // Patient magic-link (set on entry via /p/<token>); powers the "nueva consulta" link when closed.
+  const [patientToken, setPatientToken] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   // Remember this session so a returning user on the same device lands back here.
@@ -80,6 +82,7 @@ export default function ChatPage({
         setEscalated(data.status === "escalated");
         setClosed(data.status === "resolved");
         setCertificateAvailable(Boolean(data.certificateAvailable));
+        setPatientToken(localStorage.getItem("patientToken"));
       })
       .catch(() => setNotFound(true));
   }, [token]);
@@ -266,7 +269,10 @@ export default function ChatPage({
         {closed && (
           <p className="rounded-lg bg-zinc-100 px-3 py-2 text-center text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
             Esta conversación fue cerrada. Si necesitas ayuda,{" "}
-            <Link href="/" className="font-medium underline">
+            <Link
+              href={patientToken ? `/p/${patientToken}` : "/"}
+              className="font-medium underline"
+            >
               inicia una nueva consulta
             </Link>
             .

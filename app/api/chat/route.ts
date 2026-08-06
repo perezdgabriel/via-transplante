@@ -82,7 +82,7 @@ export async function POST(request: Request) {
               text: systemPrompt(),
               cache_control: { type: "ephemeral" },
             },
-            { type: "text", text: `Estás hablando con: ${conv.patient_name}.` },
+            { type: "text", text: `El paciente es: ${conv.patient_name}.` },
           ],
           tools: [escalateTool, generateCertificateTool, entregarFolletoTool],
           messages,
@@ -120,13 +120,11 @@ export async function POST(request: Request) {
           controller.enqueue(line({ type: "text", text: notice }));
           controller.enqueue(line({ type: "escalated" }));
         } else if (toolUse?.name === "generate_certificate") {
-          // Certificate names the STUDENT, collected by the tool — not the account holder (parent).
-          const certInput = toolUse.input as { name?: string; rut?: string };
+          // Certificate names the registered patient (the child) — already on the conversation, so the
+          // tool only marks it issued. No identity is collected mid-chat.
           await supabase
             .from("conversations")
             .update({
-              certificate_name: certInput.name ?? null,
-              certificate_rut: certInput.rut ?? null,
               certificate_issued_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })

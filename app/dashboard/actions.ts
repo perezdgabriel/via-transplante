@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isValidRut, formatRut } from "@/lib/rut";
 
 const PRIORITIES = ["urgent", "normal", "informative"];
 
@@ -57,6 +58,22 @@ export async function replyToUser(formData: FormData) {
     .from("messages")
     .insert({ conversation_id: conversationId, role: "nurse", content });
   revalidatePath("/dashboard");
+}
+
+// Register a patient (the child) at discharge and mint its magic-link token. The family opens
+// /p/<token> to chat; the link is bound to this patient, so identity is captured once, by the nurse.
+export async function registerPatient(formData: FormData) {
+  const supabase = await requireNurse();
+  const name = String(formData.get("name") ?? "").trim();
+  const rut = String(formData.get("rut") ?? "");
+  if (name.length < 2) throw new Error("Nombre inválido");
+  if (!isValidRut(rut)) throw new Error("RUT inválido");
+
+  const { error } = await supabase
+    .from("patients")
+    .insert({ token: crypto.randomUUID(), name, rut: formatRut(rut) });
+  if (error) throw new Error("No se pudo registrar al paciente");
+  revalidatePath("/dashboard/patients");
 }
 
 export async function signOut() {
