@@ -6,10 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 // registered it at discharge), so nothing is asked here: resume the open consulta if there is one
 // (one open per patient), otherwise start a fresh one pre-bound to the patient.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+  // `new: true` = the user pressed "Nueva consulta" to start a fresh topic (also bounds AI context).
+  const body = (await request.json().catch(() => ({}))) as { new?: boolean };
+  const forceNew = body.new === true;
   const supabase = createServiceClient();
 
   const { data: patient } = await supabase
@@ -30,7 +33,7 @@ export async function POST(
 
   const { data: open } = await supabase
     .from("conversations")
-    .select("token")
+    .select("token, status")
     .eq("patient_id", patient.id)
     .neq("status", "resolved")
     .order("created_at", { ascending: false })
@@ -38,13 +41,22 @@ export async function POST(
     .maybeSingle();
 
   if (open) {
-    if (user) {
+    // "Nueva consulta" closes the current AI consulta and falls through to create a fresh one.
+    // Never abandon an escalated thread this way — a nurse is handling it; just resume it.
+    if (forceNew && open.status === "ai_active") {
       await supabase
         .from("conversations")
-        .update({ owner_id: user.id })
+        .update({ status: "resolved", updated_at: new Date().toISOString() })
         .eq("token", open.token);
+    } else {
+      if (user) {
+        await supabase
+          .from("conversations")
+          .update({ owner_id: user.id })
+          .eq("token", open.token);
+      }
+      return NextResponse.json({ token: open.token });
     }
-    return NextResponse.json({ token: open.token });
   }
 
   const convToken = crypto.randomUUID();

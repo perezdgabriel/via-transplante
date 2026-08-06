@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type Msg = { role: "user" | "assistant" | "nurse"; content: string };
@@ -35,7 +36,9 @@ export default function ChatPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
+  const router = useRouter();
   const [convId, setConvId] = useState<string | null>(null);
+  const [startingNew, setStartingNew] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -83,6 +86,7 @@ export default function ChatPage({
         setClosed(data.status === "resolved");
         setCertificateAvailable(Boolean(data.certificateAvailable));
         setPatientToken(localStorage.getItem("patientToken"));
+        setStartingNew(false); // reset after a "Nueva consulta" swap lands on the new token
       })
       .catch(() => setNotFound(true));
   }, [token]);
@@ -127,6 +131,26 @@ export default function ChatPage({
       const last = m[m.length - 1];
       return [...m.slice(0, -1), { ...last, content: last.content + text }];
     });
+  }
+
+  // Close this AI consulta and open a fresh one for a new topic (keeps context bounded). The enter
+  // route resolves the current ai_active conversation and returns a new token; we swap the URL to it.
+  async function startNew() {
+    if (!patientToken || startingNew) return;
+    setStartingNew(true);
+    try {
+      const res = await fetch(`/api/patient/${patientToken}/enter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error();
+      localStorage.setItem("lastConversation", data.token);
+      router.replace(`/c/${data.token}`);
+    } catch {
+      setStartingNew(false);
+    }
   }
 
   async function send(e: React.FormEvent) {
@@ -226,8 +250,17 @@ export default function ChatPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
-      <header className="border-b border-black/10 px-4 py-3 dark:border-white/15">
+      <header className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/15">
         <h1 className="font-semibold">Vía Transplante</h1>
+        {!escalated && !closed && patientToken && (
+          <button
+            onClick={startNew}
+            disabled={startingNew}
+            className="text-sm font-medium text-zinc-600 underline disabled:opacity-60 dark:text-zinc-400"
+          >
+            {startingNew ? "Abriendo…" : "Nueva consulta"}
+          </button>
+        )}
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
