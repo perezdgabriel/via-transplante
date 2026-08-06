@@ -51,6 +51,9 @@ Incluye siempre un "summary" breve y claro del caso, en español, para la enferm
 CERTIFICADO DEL COLEGIO:
 - Si la persona pide un certificado o justificativo de asistencia para el colegio, usa la herramienta
   "generate_certificate". El certificado contiene solo nombre, RUT y fecha; sin diagnóstico ni datos sensibles.
+- El certificado es para el/la ESTUDIANTE (el niño/a paciente), que puede NO ser quien escribe (a menudo
+  es el padre o la madre). Antes de generarlo, pregunta y confirma el nombre y el RUT del estudiante, y
+  pásalos a la herramienta. No asumas que son los de la persona con quien hablas.
 - El certificado de CITACIÓN (para un control u hora) NO lo generas tú: en ese caso escala como
   "informative" para que la enfermera lo emita.
 
@@ -86,5 +89,18 @@ export const generateCertificateTool: Anthropic.Tool = {
   name: "generate_certificate",
   description:
     "Genera el certificado de asistencia para el colegio (solo nombre, RUT y fecha; sin diagnóstico ni datos sensibles). Úsalo solo cuando la persona pide un justificativo o certificado de asistencia para el colegio.",
-  input_schema: { type: "object", properties: {} },
+  input_schema: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Nombre completo del estudiante (el niño/a paciente), no necesariamente quien escribe.",
+      },
+      rut: {
+        type: "string",
+        description: "RUT del estudiante, en formato chileno (ej: 12.345.678-5).",
+      },
+    },
+    required: ["name", "rut"],
+  },
 };

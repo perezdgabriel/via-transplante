@@ -12,7 +12,7 @@ export async function GET(
 
   const { data: conv } = await supabase
     .from("conversations")
-    .select("patient_name, rut, certificate_issued_at")
+    .select("patient_name, rut, certificate_name, certificate_rut, certificate_issued_at")
     .eq("token", token)
     .single();
 
@@ -20,16 +20,21 @@ export async function GET(
     return new Response("Certificado no disponible", { status: 404 });
   }
 
+  // Prefer the student identity the tool collected; fall back to the account holder for
+  // certificates issued before that was captured.
+  const name = conv.certificate_name ?? conv.patient_name;
+  const rut = conv.certificate_rut ?? conv.rut;
+
   const pdf = await buildCertificatePdf({
-    name: conv.patient_name,
-    rut: conv.rut,
+    name,
+    rut,
     date: new Date(conv.certificate_issued_at),
   });
 
   return new Response(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="certificado-${conv.rut}.pdf"`,
+      "Content-Disposition": `attachment; filename="certificado-${rut}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

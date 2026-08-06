@@ -120,9 +120,13 @@ export async function POST(request: Request) {
           controller.enqueue(line({ type: "text", text: notice }));
           controller.enqueue(line({ type: "escalated" }));
         } else if (toolUse?.name === "generate_certificate") {
+          // Certificate names the STUDENT, collected by the tool — not the account holder (parent).
+          const certInput = toolUse.input as { name?: string; rut?: string };
           await supabase
             .from("conversations")
             .update({
+              certificate_name: certInput.name ?? null,
+              certificate_rut: certInput.rut ?? null,
               certificate_issued_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
