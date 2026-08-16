@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Nav } from "../Nav";
 import { registerPatient } from "../actions";
@@ -11,13 +12,22 @@ type Patient = {
   name: string;
   rut: string;
   created_at: string;
+  next_appointment_at: string | null;
+  medications: unknown[] | null;
+  allergies: string | null;
+  restrictions: string | null;
 };
+
+const hasRecord = (p: Patient) =>
+  Boolean(p.next_appointment_at || p.medications?.length || p.allergies || p.restrictions);
 
 export default async function PatientsPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("patients")
-    .select("id, token, name, rut, created_at")
+    .select(
+      "id, token, name, rut, created_at, next_appointment_at, medications, allergies, restrictions",
+    )
     .order("created_at", { ascending: false });
   const patients = (data ?? []) as Patient[];
 
@@ -68,9 +78,19 @@ export default async function PatientsPage() {
               key={p.id}
               className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-900"
             >
-              <div className="mb-3">
-                <p className="font-medium">{p.name}</p>
-                <p className="text-sm text-zinc-500">{p.rut}</p>
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <div>
+                  <Link href={`/dashboard/patients/${p.id}`} className="font-medium hover:underline">
+                    {p.name}
+                  </Link>
+                  <p className="text-sm text-zinc-500">{p.rut}</p>
+                </div>
+                <Link
+                  href={`/dashboard/patients/${p.id}`}
+                  className="shrink-0 text-sm text-zinc-500 hover:underline"
+                >
+                  {hasRecord(p) ? "Ver ficha" : "Completar ficha"} →
+                </Link>
               </div>
               <PatientLink token={p.token} />
             </article>

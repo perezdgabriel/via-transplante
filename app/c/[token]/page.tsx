@@ -4,6 +4,8 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { RecordCard } from "./RecordCard";
+import type { RecordField } from "@/lib/patient-record";
 
 type Msg = { role: "user" | "assistant" | "nurse"; content: string };
 
@@ -49,6 +51,7 @@ export default function ChatPage({
   const [folletos, setFolletos] = useState<
     { id: string; title: string; url: string | null }[]
   >([]);
+  const [recordFields, setRecordFields] = useState<RecordField[]>([]);
   const [notFound, setNotFound] = useState(false);
   // Patient magic-link (set on entry via /p/<token>); powers the "nueva consulta" link when closed.
   const [patientToken, setPatientToken] = useState<string | null>(null);
@@ -69,6 +72,10 @@ export default function ChatPage({
       setMessages((prev) =>
         data.messages.length > prev.length ? data.messages : prev,
       );
+      // ponytail: the ficha refreshes whenever the transcript does — on a new message, or on
+      // reopening the chat. An already-open card does NOT track a nurse's edit on its own; add a
+      // poll if that turns out to matter. The AI always reads the record live, either way.
+      setRecordFields(data.recordFields ?? []);
       if (data.status === "resolved") setClosed(true);
     } catch {
       /* transient; a later Realtime event or poll retries */
@@ -85,6 +92,7 @@ export default function ChatPage({
         setEscalated(data.status === "escalated");
         setClosed(data.status === "resolved");
         setCertificateAvailable(Boolean(data.certificateAvailable));
+        setRecordFields(data.recordFields ?? []);
         setPatientToken(localStorage.getItem("patientToken"));
         setStartingNew(false); // reset after a "Nueva consulta" swap lands on the new token
       })
@@ -262,6 +270,8 @@ export default function ChatPage({
           </button>
         )}
       </header>
+
+      <RecordCard fields={recordFields} />
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m, i) => (

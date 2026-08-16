@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isValidRut, formatRut } from "@/lib/rut";
+import { parseMedications } from "@/lib/patient-record";
 
 const PRIORITIES = ["urgent", "normal", "informative"];
+
+// Blank stays blank: an empty ficha field must be null, never "".
+const text = (v: FormDataEntryValue | null) => String(v ?? "").trim() || null;
 
 async function requireNurse() {
   const supabase = await createClient();
@@ -74,6 +78,42 @@ export async function registerPatient(formData: FormData) {
     .insert({ token: crypto.randomUUID(), name, rut: formatRut(rut) });
   if (error) throw new Error("No se pudo registrar al paciente");
   revalidatePath("/dashboard/patients");
+}
+
+// Save the ficha de seguimiento. Fields left blank are stored as null, which is what keeps the AI
+// from ever asserting their absence: renderRecordForPrompt omits them, so the model can't see them.
+// See docs/adr/0007-per-patient-verbatim-record.md.
+export async function updatePatientRecord(formData: FormData) {
+  const supabase = await requireNurse();
+  const patientId = String(formData.get("patientId") ?? "");
+  if (!patientId) throw new Error("Paciente inválido");
+
+  // The client sends an ISO instant already, converted from the datetime-local input against
+  // America/Santiago (see fromSantiagoLocal), not against whatever zone the browser is in.
+  const at = String(formData.get("nextAppointmentAt") ?? "").trim();
+  const when = at ? new Date(at) : null;
+  if (when && Number.isNaN(when.getTime())) throw new Error("Fecha de control inválida");
+
+  const { data, error } = await supabase
+    .from("patients")
+    .update({
+      next_appointment_at: when ? when.toISOString() : null,
+      next_appointment_place: text(formData.get("nextAppointmentPlace")),
+      medications: parseMedications(formData.get("medications")),
+      allergies: text(formData.get("allergies")),
+      restrictions: text(formData.get("restrictions")),
+      record_source: "manual",
+      record_synced_at: null,
+    })
+    .eq("id", patientId)
+    .select("id");
+  // An UPDATE that matches no row is not an error in Postgres: a deleted patient, a tampered id, or
+  // an anonymous session filtered out by RLS all land here. Without this the action returns cleanly
+  // and the nurse keeps looking at the medications she typed, believing the ficha saved.
+  if (error || !data?.length) throw new Error("No se pudo guardar la ficha");
+
+  revalidatePath(`/dashboard/patients/${patientId}`);
+  revalidatePath("/dashboard/patients"); // the list shows "Completar ficha" vs "Ver ficha"
 }
 
 export async function signOut() {

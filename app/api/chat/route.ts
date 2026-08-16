@@ -3,6 +3,7 @@ import { getAnthropic, MODEL } from "@/lib/anthropic";
 import { systemPrompt, escalateTool, generateCertificateTool } from "@/lib/prompts";
 import { entregarFolletoTool, getFolleto } from "@/lib/folletos";
 import { createServiceClient } from "@/lib/supabase/service";
+import { renderRecordForPrompt, todayInChile, type PatientRecord } from "@/lib/patient-record";
 
 type Priority = "urgent" | "normal" | "informative";
 const PRIORITIES: Priority[] = ["urgent", "normal", "informative"];
@@ -27,9 +28,14 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
+  // The ficha is read LIVE through patient_id, not snapshotted like patient_name/rut: a stale
+  // record is the failure mode this feature is designed against. patient_id is null on
+  // conversations created before 0006 -> no ficha -> the AI escalates, same as an empty one.
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id, patient_name, status")
+    .select(
+      "id, patient_name, status, patients(next_appointment_at, next_appointment_place, medications, allergies, restrictions)",
+    )
     .eq("token", token)
     .single();
   if (!conv) return new Response("No encontrado", { status: 404 });
@@ -65,6 +71,16 @@ export async function POST(request: Request) {
       content: m.content,
     }));
 
+  // Per-patient system block. No generated Supabase types in this repo, so cast the join; accept an
+  // array too, because getting the shape wrong here fails silently (the model just never sees a ficha).
+  const joined = (conv as unknown as { patients: PatientRecord | PatientRecord[] | null }).patients;
+  const record = Array.isArray(joined) ? (joined[0] ?? null) : joined;
+  const now = new Date();
+  const ficha = renderRecordForPrompt(record, now);
+  const patientBlock =
+    `Hoy es ${todayInChile(now)}.\nEl paciente es: ${conv.patient_name}.` +
+    (ficha ? `\n\n${ficha}` : "");
+
   const stream = new ReadableStream({
     async start(controller) {
       let assistantText = "";
@@ -72,17 +88,19 @@ export async function POST(request: Request) {
         const ai = getAnthropic().messages.stream({
           model: MODEL,
           max_tokens: 1024,
-          // Prompt caching: the big static prompt (tools + KB + rules) is the cached prefix, identical
-          // across all patients. The patient name goes in a second, uncached block after the breakpoint,
-          // so it doesn't invalidate the shared prefix. Cache hits within a conversation (turns 2+) and
-          // across patients. Note: caches on Sonnet (min 1024 tok); Haiku's min is 4096, so it may not.
+          // Prompt caching: the big static prompt (tools + KB + rules, including the rules ABOUT the
+          // ficha) is the cached prefix, identical across all patients. Per-patient data — today's
+          // date, the name, and the ficha itself — goes in a second, uncached block after the
+          // breakpoint, so it doesn't invalidate the shared prefix. Cache hits within a conversation
+          // (turns 2+) and across patients. Note: caches on Sonnet (min 1024 tok); Haiku's min is
+          // 4096, so it may not.
           system: [
             {
               type: "text",
               text: systemPrompt(),
               cache_control: { type: "ephemeral" },
             },
-            { type: "text", text: `El paciente es: ${conv.patient_name}.` },
+            { type: "text", text: patientBlock },
           ],
           tools: [escalateTool, generateCertificateTool, entregarFolletoTool],
           messages,

@@ -18,6 +18,7 @@ implementación.
 | RUT | `rut` | Identificador nacional chileno. Se valida el dígito verificador. Es un **organizador** (agrupa consultas por paciente), no una llave de acceso. Lo registra la enfermera, no la familia. |
 | Enlace del paciente | `patients.token` | Secreto no adivinable que la enfermera entrega a la familia al alta (`/p/<token>`). Es la llave durable de acceso del paciente; abrirlo retoma la consulta abierta o inicia una nueva. |
 | Dueño de la conversación | `owner_id` | Usuario anónimo de Supabase (`auth.uid()`) del dispositivo que abrió la consulta. Habilita el Realtime del paciente vía RLS; apunta al dispositivo activo actual. El **token** sigue siendo la llave de acceso. |
+| Ficha de seguimiento | `PatientRecord` | Subconjunto **operativo** del paciente que la IA puede leer **textualmente**: próximo control, medicamentos (con dosis y frecuencia), alergias y restricciones. Sin diagnóstico, sin tipo de trasplante, sin peso. **No es la ficha clínica del hospital**: no es el registro autoritativo ni pretende serlo. La enfermera la completa; a futuro puede venir del sistema del hospital. Un campo vacío significa *no registrado*, nunca *no tiene*. |
 | Base de conocimiento | `knowledgeBase` | Contenido aprobado por el hospital que la IA puede entregar. La IA **solo relata texto aprobado de forma textual**; nunca redacta indicaciones clínicas por su cuenta. Lo no cubierto se escala. |
 | Folleto | `Folleto` | Recurso educativo (PDF/infografía) del catálogo del hospital que la IA puede entregar al usuario. |
 

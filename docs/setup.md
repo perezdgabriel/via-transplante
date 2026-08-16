@@ -20,6 +20,10 @@
 3. **Base de datos**: ejecutar las migraciones de `supabase/migrations/` en orden en el proyecto de
    Supabase (SQL Editor del panel, o `supabase db push` si usas la CLI).
 
+   Opcional, solo para demos: ejecutar además `supabase/seed.sql`, que crea pacientes ficticios con su
+   ficha de seguimiento, algunas consultas y un aviso activo, para que el dashboard no esté vacío. Es
+   idempotente (se puede volver a correr). **No ejecutar en producción.**
+
 4. **Cuenta de la enfermera**: en el panel de Supabase → Authentication → Users → crear un usuario
    (email + contraseña). Es la cuenta única compartida para el dashboard.
 

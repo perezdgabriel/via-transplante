@@ -16,6 +16,9 @@ mismo chat.
   su cuenta; lo que no está cubierto se escala.
 - **Prioriza la seguridad:** una lista de señales de alarma (ej. fiebre ≥ 38 °C en un niño
   inmunosuprimido) anula la base de conocimiento y fuerza el escalamiento urgente.
+- **Responde preguntas del propio paciente** leyendo su **ficha de seguimiento** (próximo control,
+  medicamentos con dosis y frecuencia, alergias, restricciones) **tal cual la escribió la enfermera**.
+  Nunca calcula ni ajusta nada a partir de ella. La familia también ve la ficha directamente en el chat.
 - **Entrega folletos** educativos del catálogo (`entregar_folleto`).
 - **Genera el certificado de asistencia** para el colegio (solo nombre, RUT y fecha; sin datos
   sensibles).
@@ -26,10 +29,15 @@ mismo chat.
 - Bandeja común de avisos activos con nombre/RUT, resumen, texto completo y prioridad.
 - La enfermera reclasifica la prioridad, responde al paciente por el chat (en vivo, vía Realtime) o
   resuelve el aviso por fuera.
+- Registro de pacientes y entrega del enlace (copiar o QR).
+- **Ficha de seguimiento por paciente** (`/dashboard/patients/[id]`), junto con todas sus consultas.
+  Un campo vacío significa *no registrado*: la IA escala en vez de afirmar que el paciente no lo tiene.
 - Historial de todas las consultas, agrupadas por RUT.
 
 El alcance clínico de la IA (relato textual de contenido aprobado + anulación por señales de alarma) está
-documentado en [`docs/adr/0004-ai-clinical-scope-verbatim-kb.md`](docs/adr/0004-ai-clinical-scope-verbatim-kb.md).
+documentado en [`docs/adr/0004-ai-clinical-scope-verbatim-kb.md`](docs/adr/0004-ai-clinical-scope-verbatim-kb.md)
+y, para los datos por paciente, en
+[`docs/adr/0007-per-patient-verbatim-record.md`](docs/adr/0007-per-patient-verbatim-record.md).
 
 ## Stack
 
@@ -67,3 +75,7 @@ MVP. **El contenido clínico de la base de conocimiento es de demostración y a�
 equipo clínico** — ver los avisos `PENDIENTE de firma clínica` en [`lib/knowledge-base.ts`](lib/knowledge-base.ts).
 Antes de producción hay que reemplazarlo por contenido real firmado y revisar el cumplimiento de la
 Ley 19.628 y la normativa de datos de salud en Chile.
+
+Con la ficha de seguimiento, la app **guarda datos de salud** (medicamentos y alergias) por primera vez,
+así que esa revisión legal pasa a ser bloqueante. `supabase/seed.sql` son **datos de demostración**:
+pacientes ficticios para mostrar la app, no deben correr en producción.
