@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTenant } from "@/app/TenantContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const tenant = useTenant();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +17,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const supabase = createClient();
+    const supabase = createClient(tenant.supabaseUrl, tenant.anonKey);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError("Credenciales inválidas.");

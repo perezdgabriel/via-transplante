@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTenant } from "@/app/TenantContext";
 import { RecordCard } from "./RecordCard";
 import type { RecordField } from "@/lib/patient-record";
 
@@ -39,6 +40,7 @@ export default function ChatPage({
 }) {
   const { token } = use(params);
   const router = useRouter();
+  const tenant = useTenant();
   const [convId, setConvId] = useState<string | null>(null);
   const [startingNew, setStartingNew] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -107,7 +109,7 @@ export default function ChatPage({
   // (RLS scopes messages to owner_id = auth.uid()). Any insert triggers a transcript refresh.
   useEffect(() => {
     if (!convId || closed) return;
-    const supabase = createClient();
+    const supabase = createClient(tenant.supabaseUrl, tenant.anonKey);
     const channel = supabase
       .channel(`chat-${convId}`)
       .on(
@@ -124,7 +126,7 @@ export default function ChatPage({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [convId, closed, refresh]);
+  }, [convId, closed, refresh, tenant.supabaseUrl, tenant.anonKey]);
 
   // Fallback poll (~15s) while a nurse is handling it, in case Realtime isn't connected.
   useEffect(() => {

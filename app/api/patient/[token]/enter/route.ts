@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
+import { getTenant } from "@/lib/tenants";
 
 // Resolve a patient magic-link into a chat. The patient's identity is already known (the nurse
 // registered it at discharge), so nothing is asked here: resume the open consulta if there is one
@@ -13,7 +14,9 @@ export async function POST(
   // `new: true` = the user pressed "Nueva consulta" to start a fresh topic (also bounds AI context).
   const body = (await request.json().catch(() => ({}))) as { new?: boolean };
   const forceNew = body.new === true;
-  const supabase = createServiceClient();
+  const tenant = getTenant(request.headers.get("host"));
+  if (!tenant) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  const supabase = createServiceClient(tenant);
 
   const { data: patient } = await supabase
     .from("patients")

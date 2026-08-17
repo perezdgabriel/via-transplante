@@ -8,6 +8,7 @@ export function Nav() {
         <Link href="/dashboard">Avisos</Link>
         <Link href="/dashboard/patients">Pacientes</Link>
         <Link href="/dashboard/history">Historial</Link>
+        <Link href="/dashboard/knowledge">Base de conocimiento</Link>
       </nav>
       <form action={signOut}>
         <button className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">

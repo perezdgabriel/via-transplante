@@ -4,6 +4,8 @@ import { systemPrompt, escalateTool, generateCertificateTool } from "@/lib/promp
 import { entregarFolletoTool, getFolleto } from "@/lib/folletos";
 import { createServiceClient } from "@/lib/supabase/service";
 import { renderRecordForPrompt, todayInChile, type PatientRecord } from "@/lib/patient-record";
+import { getTenant } from "@/lib/tenants";
+import { EMPTY_KNOWLEDGE, type TenantKnowledge } from "@/lib/knowledge-base";
 
 type Priority = "urgent" | "normal" | "informative";
 const PRIORITIES: Priority[] = ["urgent", "normal", "informative"];
@@ -27,7 +29,10 @@ export async function POST(request: Request) {
     return new Response("Solicitud inválida", { status: 400 });
   }
 
-  const supabase = createServiceClient();
+  const tenant = getTenant(request.headers.get("host"));
+  if (!tenant) return new Response("No encontrado", { status: 404 });
+
+  const supabase = createServiceClient(tenant);
   // The ficha is read LIVE through patient_id, not snapshotted like patient_name/rut: a stale
   // record is the failure mode this feature is designed against. patient_id is null on
   // conversations created before 0006 -> no ficha -> the AI escalates, same as an empty one.
@@ -58,11 +63,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: history } = await supabase
-    .from("messages")
-    .select("role, content")
-    .eq("conversation_id", conv.id)
-    .order("created_at", { ascending: true });
+  // La BdC vigente es la última versión publicada. Se lee en paralelo con la transcripción para no
+  // agregar latencia serial a cada turno. Sin versiones publicadas (hospital recién dado de alta) se
+  // usa la vacía: la IA queda con el baseline clínico y escala toda pregunta operativa, que es el
+  // modo de falla correcto — nunca inventa horarios ni recita los de otro hospital.
+  const [{ data: history }, { data: publishedKb, error: kbError }] = await Promise.all([
+    supabase
+      .from("messages")
+      .select("role, content")
+      .eq("conversation_id", conv.id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("knowledge_versions")
+      .select("operational, clinical_added, red_flags_added")
+      .order("published_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  // Una caída transitoria de esta lectura es indistinguible de "todavía no publican nada": en ambos
+  // casos el asistente pierde la BdC operativa y dice que no tiene la información. Se registra para
+  // poder distinguir el bug del caso legítimo; degradar a escalar sigue siendo lo correcto.
+  if (kbError) console.error("knowledge_versions read failed", kbError);
+  const kb: TenantKnowledge = publishedKb ?? EMPTY_KNOWLEDGE;
 
   const messages: Anthropic.MessageParam[] = (history ?? [])
     .filter((m) => m.role === "user" || m.role === "assistant")
@@ -88,16 +110,18 @@ export async function POST(request: Request) {
         const ai = getAnthropic().messages.stream({
           model: MODEL,
           max_tokens: 1024,
-          // Prompt caching: the big static prompt (tools + KB + rules, including the rules ABOUT the
-          // ficha) is the cached prefix, identical across all patients. Per-patient data — today's
-          // date, the name, and the ficha itself — goes in a second, uncached block after the
+          // Prompt caching: the big prompt (tools + KB + rules, including the rules ABOUT the ficha)
+          // is the cached prefix, identical across all patients OF THIS HOSPITAL. Per-patient data —
+          // today's date, the name, and the ficha itself — goes in a second, uncached block after the
           // breakpoint, so it doesn't invalidate the shared prefix. Cache hits within a conversation
-          // (turns 2+) and across patients. Note: caches on Sonnet (min 1024 tok); Haiku's min is
-          // 4096, so it may not.
+          // (turns 2+) and across patients. Con la BdC por tenant el prefijo dejó de ser global, pero
+          // sigue siendo compartido por todo el tráfico de un hospital, que es donde importa; publicar
+          // una versión lo invalida, y eso pasa poco. Note: caches on Sonnet (min 1024 tok); Haiku's
+          // min is 4096, so it may not.
           system: [
             {
               type: "text",
-              text: systemPrompt(),
+              text: systemPrompt(tenant, kb),
               cache_control: { type: "ephemeral" },
             },
             { type: "text", text: patientBlock },

@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordFields, type PatientRecord } from "@/lib/patient-record";
+import { getTenant } from "@/lib/tenants";
 
 // Load a conversation and its transcript by token (the token is the access secret; no login).
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const supabase = createServiceClient();
+  const tenant = getTenant(request.headers.get("host"));
+  if (!tenant) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  const supabase = createServiceClient(tenant);
 
   const { data: conversation } = await supabase
     .from("conversations")

@@ -32,6 +32,9 @@ mismo chat.
 - Registro de pacientes y entrega del enlace (copiar o QR).
 - **Ficha de seguimiento por paciente** (`/dashboard/patients/[id]`), junto con todas sus consultas.
   Un campo vacío significa *no registrado*: la IA escala en vez de afirmar que el paciente no lo tiene.
+- **Base de conocimiento editable** (`/dashboard/knowledge`): el hospital escribe su información
+  operativa y puede *sumar* contenido clínico y señales de alarma a un baseline curado, que **no puede
+  quitar**. Cada publicación queda firmada, fechada e inmutable.
 - Historial de todas las consultas, agrupadas por RUT.
 
 El alcance clínico de la IA (relato textual de contenido aprobado + anulación por señales de alarma) está
@@ -43,6 +46,8 @@ y, para los datos por paciente, en
 
 - **Next.js** (App Router) — chat y dashboard, ambos responsive.
 - **Supabase** — Postgres, Auth (cuenta de enfermera + sesión anónima del paciente para Realtime) y RLS.
+  **Un proyecto por hospital**: los datos de paciente nunca comparten base entre instituciones. El
+  hospital se resuelve por subdominio; ver [`docs/adr/0008`](docs/adr/0008-dos-planos-de-tenancy.md).
 - **API de Claude** (Messages API) — el asistente, con herramientas (`escalate`, `generate_certificate`,
   `entregar_folleto`) y prompt caching en el system prompt.
 
@@ -63,18 +68,27 @@ pnpm dev
 - Dashboard enfermera: <http://localhost:3000/dashboard>
 
 Variables de entorno (ver `.env.example`): `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (haiku en desarrollo,
-`claude-sonnet-5` en producción), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y
-`SUPABASE_SERVICE_ROLE_KEY` (solo servidor, nunca al navegador).
+`claude-sonnet-5` en producción), `TENANTS_JSON` (un objeto con las credenciales de Supabase de cada
+hospital; las `serviceKey` son solo de servidor y nunca llegan al navegador) y `TENANT_FALLBACK_SLUG`
+(solo desarrollo local).
 
 Los pasos completos (migraciones, cuenta de la enfermera, inicio de sesión anónimo) están en
 [`docs/setup.md`](docs/setup.md).
 
 ## Estado
 
-MVP. **El contenido clínico de la base de conocimiento es de demostración y aún no está validado por el
-equipo clínico** — ver los avisos `PENDIENTE de firma clínica` en [`lib/knowledge-base.ts`](lib/knowledge-base.ts).
-Antes de producción hay que reemplazarlo por contenido real firmado y revisar el cumplimiento de la
-Ley 19.628 y la normativa de datos de salud en Chile.
+MVP. **El baseline clínico es de demostración y aún no está validado por el equipo clínico** — ver los
+avisos `PENDIENTE de firma clínica` en [`lib/knowledge-base.ts`](lib/knowledge-base.ts). Antes de
+producción hay que reemplazarlo por contenido real firmado. Lo que cada hospital publica desde el
+dashboard sí queda firmado y fechado, pero **no tiene revisión en git**: la calidad depende del proceso
+del hospital (ver [`docs/adr/0009`](docs/adr/0009-base-de-conocimiento-fuera-de-git.md)).
+
+Pendiente **bloqueante** para vender: la **Ley 21.719** entra en vigencia el **1 de diciembre de 2026**,
+con multas de hasta 20.000 UTM y notificación de brechas en 72 h. Hace falta un **contrato de encargo**
+por hospital y una evaluación de impacto — la app trata datos de salud de NNA. Además, **Anthropic es
+subencargado**: cada ficha y cada mensaje de un cuidador cruza a una API en EE.UU., lo que exige
+términos con retención cero, autorización expresa en cada contrato y un mecanismo de transferencia
+internacional.
 
 Con la ficha de seguimiento, la app **guarda datos de salud** (medicamentos y alergias) por primera vez,
 así que esa revisión legal pasa a ser bloqueante. `supabase/seed.sql` son **datos de demostración**:

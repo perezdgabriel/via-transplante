@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTenant } from "@/app/TenantContext";
 
 // Magic-link target. This token is bound to the patient (registered by the nurse), so there is no
 // form: ensure an anonymous session (so the chat gets Realtime), resolve to a conversation, and go.
@@ -13,13 +14,14 @@ export default function PatientEntry({
 }) {
   const { token } = use(params);
   const router = useRouter();
+  const tenant = useTenant();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const supabase = createClient();
+        const supabase = createClient(tenant.supabaseUrl, tenant.anonKey);
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -42,7 +44,7 @@ export default function PatientEntry({
     return () => {
       cancelled = true;
     };
-  }, [token, router]);
+  }, [token, router, tenant.supabaseUrl, tenant.anonKey]);
 
   return (
     <main className="flex flex-1 items-center justify-center p-4 text-center">

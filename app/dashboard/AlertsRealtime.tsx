@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTenant } from "@/app/TenantContext";
 
 // Subscribes to alert changes and re-renders the server component (which refetches with auth).
 // ponytail: refresh-on-any-event beats maintaining a client copy of the inbox.
 export function AlertsRealtime() {
   const router = useRouter();
+  const tenant = useTenant();
   // undefined until mounted, so SSR and first client render both emit nothing (no hydration mismatch).
   const [permission, setPermission] = useState<NotificationPermission>();
 
@@ -16,7 +18,7 @@ export function AlertsRealtime() {
       typeof Notification !== "undefined" ? Notification.permission : "denied",
     );
 
-    const supabase = createClient();
+    const supabase = createClient(tenant.supabaseUrl, tenant.anonKey);
     let cancelled = false;
     let cleanup: (() => void) | undefined;
 
@@ -67,7 +69,7 @@ export function AlertsRealtime() {
       cancelled = true;
       cleanup?.();
     };
-  }, [router]);
+  }, [router, tenant.supabaseUrl, tenant.anonKey]);
 
   if (!permission || permission === "granted") return null;
 

@@ -1,8 +1,9 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 
 // School-attendance certificate. Contains ONLY name, RUT and date — no diagnosis or sensitive data.
-// ponytail: hospital name/branding is a placeholder; finalize wording with the team (like the prompt).
-const HOSPITAL_NAME = "Hospital Pediátrico";
+// El nombre del hospital viene del tenant: es un documento que sale del edificio con el nombre de una
+// institución encima, así que no puede quedar hardcodeado ni traer un valor por defecto.
+// ponytail: la redacción exacta sigue pendiente de acordar con el equipo (igual que el prompt).
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const words = text.split(" ");
@@ -25,6 +26,7 @@ export async function buildCertificatePdf(opts: {
   name: string;
   rut: string;
   date: Date;
+  hospitalName: string;
 }): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595.28, 841.89]); // A4
@@ -47,8 +49,14 @@ export async function buildCertificatePdf(opts: {
   });
 
   let y = 760;
-  page.drawText(HOSPITAL_NAME, { x: margin, y, size: 16, font: bold, color: ink });
-  y -= 60;
+  // Se envuelve como el resto del texto: el nombre lo pone el operador por tenant, y los nombres
+  // oficiales chilenos son largos ("Hospital de Niños Dr. Roberto del Río — Servicio de Salud
+  // Metropolitano Norte"). Sin envolver se recortaría en silencio en cada certificado emitido.
+  for (const l of wrap(opts.hospitalName, bold, 16, maxWidth)) {
+    page.drawText(l, { x: margin, y, size: 16, font: bold, color: ink });
+    y -= 22;
+  }
+  y -= 38;
   page.drawText("Certificado de Asistencia", { x: margin, y, size: 22, font: bold, color: ink });
   y -= 50;
 

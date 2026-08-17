@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isValidRut, formatRut } from "@/lib/rut";
 import { parseMedications } from "@/lib/patient-record";
+import { KB_MAX_CHARS, knowledgeLength } from "@/lib/knowledge-base";
 
 const PRIORITIES = ["urgent", "normal", "informative"];
 
@@ -114,6 +115,41 @@ export async function updatePatientRecord(formData: FormData) {
 
   revalidatePath(`/dashboard/patients/${patientId}`);
   revalidatePath("/dashboard/patients"); // the list shows "Completar ficha" vs "Ver ficha"
+}
+
+// Publica una versión de la base de conocimiento. Es lo que reemplaza al PR como gate de aprobación
+// (ver docs/adr/0009-base-de-conocimiento-fuera-de-git.md): cada publicación es una fila nueva, firmada
+// y con fecha, en una tabla sin update ni delete.
+//
+// La autorización real NO está acá sino en RLS: solo un usuario con app_metadata.can_publish_kb puede
+// insertar. Este server action, como el resto del archivo, delega en la política y trata el insert sin
+// filas como fallo — la enfermera que triage avisos puede abrir esta pantalla, pero no publicar.
+export async function publishKnowledge(formData: FormData) {
+  const supabase = await requireNurse();
+  const version = {
+    operational: String(formData.get("operational") ?? ""),
+    clinical_added: String(formData.get("clinicalAdded") ?? ""),
+    red_flags_added: String(formData.get("redFlagsAdded") ?? ""),
+  };
+  // Sin firma no es una publicación: el nombre de quien aprueba es el equivalente al autor del PR.
+  const signedBy = String(formData.get("signedBy") ?? "").trim();
+  if (!signedBy) throw new Error("Falta el nombre de quien aprueba el contenido");
+
+  if (knowledgeLength(version) > KB_MAX_CHARS) {
+    throw new Error(`El contenido supera el máximo de ${KB_MAX_CHARS} caracteres`);
+  }
+
+  const { data, error } = await supabase
+    .from("knowledge_versions")
+    .insert({ ...version, signed_by: signedBy })
+    .select("id");
+  // Mismo patrón que updatePatientRecord: RLS filtra sin devolver error, así que 0 filas = no publicó.
+  // Sin esto el editor se queda mirando el texto que escribió, creyendo que quedó publicado.
+  if (error || !data?.length) {
+    throw new Error("No se pudo publicar. ¿Tu cuenta tiene permiso para publicar contenido?");
+  }
+
+  revalidatePath("/dashboard/knowledge");
 }
 
 export async function signOut() {

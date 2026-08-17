@@ -1,14 +1,17 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { buildCertificatePdf } from "@/lib/certificate";
+import { getTenant } from "@/lib/tenants";
 
 // Serves the school-attendance PDF for a conversation. Gated on the assistant having issued it
 // (certificate_issued_at set by the generate_certificate tool). Token is the access secret.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const supabase = createServiceClient();
+  const tenant = getTenant(request.headers.get("host"));
+  if (!tenant) return new Response("No encontrado", { status: 404 });
+  const supabase = createServiceClient(tenant);
 
   const { data: conv } = await supabase
     .from("conversations")
@@ -27,6 +30,7 @@ export async function GET(
     name,
     rut,
     date: new Date(conv.certificate_issued_at),
+    hospitalName: tenant.hospitalName,
   });
 
   return new Response(Buffer.from(pdf), {

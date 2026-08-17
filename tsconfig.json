@@ -9,6 +9,10 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // Los módulos de lib/ se importan entre sí con extensión .ts para que los tests corran directo con
+    // `node lib/x.test.ts` (Node 24 borra tipos, pero su resolución ESM exige la extensión). Seguro
+    // porque noEmit: true — nada de esto llega a un archivo emitido.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
